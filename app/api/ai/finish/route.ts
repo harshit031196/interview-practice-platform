@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getServerSession } from 'next-auth'
+import { getToken } from 'next-auth/jwt'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
@@ -10,10 +11,56 @@ const finishSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[API] POST /api/ai/finish - Checking authentication')
+    
+    // Try to get user from JWT token first
+    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
+    
+    // Then try to get user from database session
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    
+    // Get user ID from either JWT token or session
+    let userId = token?.sub || session?.user?.id
+    
+    // If no JWT or session, check for database session directly
+    if (!userId) {
+      // Check standard session token first
+      let sessionToken = request.cookies.get('next-auth.session-token')?.value
+      
+      // If not found, check for database-specific session token (for hybrid fallback)
+      if (!sessionToken) {
+        sessionToken = request.cookies.get('next-auth.database-session')?.value
+        if (sessionToken) {
+          console.log('[API] Found database-specific session token')
+        }
+      }
+      
+      if (sessionToken) {
+        console.log('[API] Checking database session with token')
+        try {
+          const dbSession = await prisma.session.findUnique({
+            where: { sessionToken },
+            include: { user: true },
+          })
+          
+          if (dbSession && dbSession.expires > new Date()) {
+            userId = dbSession.userId
+            console.log('[API] Authenticated via database session for user ID:', userId)
+          } else {
+            console.log('[API] Database session invalid or expired')
+          }
+        } catch (error) {
+          console.error('[API] Error checking database session:', error)
+        }
+      }
+    }
+    
+    if (!userId) {
+      console.error('[API] Unauthorized AI finish request - no valid session')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    
+    console.log(`[API] User authenticated for AI finish: ${userId}`)
 
     const body = await request.json()
     const { sessionId } = finishSchema.parse(body)
@@ -22,7 +69,7 @@ export async function POST(request: NextRequest) {
     const sessionRecord = await prisma.interviewSession.findUnique({
       where: {
         id: sessionId,
-        intervieweeId: session.user.id,
+        intervieweeId: userId,
         status: 'RUNNING'
       },
       include: {
@@ -104,7 +151,7 @@ export async function POST(request: NextRequest) {
 
     // Update readiness score
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       include: { intervieweeProfile: true }
     })
 
@@ -114,13 +161,15 @@ export async function POST(request: NextRequest) {
       )
       
       await prisma.intervieweeProfile.update({
-        where: { userId: session.user.id },
+        where: { userId: userId },
         data: { readinessScore: newReadinessScore }
       })
     }
 
     return NextResponse.json({ reportId: report.id })
   } catch (error) {
+    console.error('[API] AI finish error:', error)
+    
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid input', details: error.errors },
@@ -129,7 +178,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

@@ -18,7 +18,6 @@ async function main() {
   await prisma.interviewerProfile.deleteMany()
   await prisma.contentItem.deleteMany()
   await prisma.account.deleteMany()
-  await prisma.session.deleteMany()
   await prisma.user.deleteMany()
 
   // Create users

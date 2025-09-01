@@ -24,6 +24,49 @@ import {
 import Link from 'next/link'
 import { useState } from 'react'
 
+const readingMaterials = [
+  {
+    title: 'Master the STAR Method',
+    description: 'Ace behavioral interviews with this proven technique.',
+    link: 'https://www.indeed.com/career-advice/interviewing/how-to-use-the-star-interview-response-technique',
+  },
+  {
+    title: 'System Design Fundamentals',
+    description: 'Prepare for technical interviews with these core concepts.',
+    link: 'https://www.geeksforgeeks.org/system-design/top-10-system-design-interview-questions-and-answers/',
+  },
+  {
+    title: 'Product Management Interview Prep',
+    description: 'A complete guide to acing your PM interview.',
+    link: 'https://www.productplan.com/learn/product-management-interview/',
+  },
+  {
+    title: 'Data Structures & Algorithms Guide',
+    description: 'Refresh your knowledge on essential DSA topics.',
+    link: 'https://www.freecodecamp.org/news/the-top-data-structures-you-should-know-for-your-next-coding-interview-36af0831f5e3/',
+  },
+  {
+    title: 'Crafting a Compelling Tech Resume',
+    description: 'Tips for making your resume stand out to recruiters.',
+    link: 'https://www.levels.fyi/blog/tech-resume-essentials.html',
+  },
+  {
+    title: 'Networking for Software Engineers',
+    description: 'Strategies for building your professional network.',
+    link: 'https://www.developer.com/project-management/networking-for-software-engineers/',
+  },
+  {
+    title: 'Common Behavioral Questions',
+    description: 'Practice your answers to the most common questions.',
+    link: 'https://www.themuse.com/advice/behavioral-interview-questions-answers-examples',
+  },
+  {
+    title: 'Salary Negotiation Strategies',
+    description: 'Learn how to negotiate your salary effectively.',
+    link: 'https://online.hbs.edu/blog/post/salary-negotiation-tips',
+  },
+];
+
 interface AnalyticsData {
   readinessScore: number
   readinessTrend: Array<{ date: string; score: number; session: number }>
@@ -31,6 +74,18 @@ interface AnalyticsData {
   totalSessions: number
   completedSessions: number
   averageScore: number
+  latestFeedback: {
+    sessionId: string;
+    date: string;
+    score: number;
+    grade: string;
+    analysis?: {
+      speech_analysis?: {
+        pace_analysis?: { average_pace?: number };
+        filler_words?: { total_count?: number };
+      }
+    }
+  } | null;
 }
 
 interface UserProfile {
@@ -94,7 +149,17 @@ export default function DashboardPage() {
     return <LoadingAnimation message="Loading your dashboard..." />
   }
 
-  const previousScore = analytics?.readinessTrend?.[analytics.readinessTrend.length - 2]?.score || analytics?.readinessScore || 0
+    const aggregateReadinessScore = analytics?.readinessTrend && analytics.readinessTrend.length > 0
+    ? Math.round(analytics.readinessTrend.reduce((acc, cur) => acc + cur.score, 0) / analytics.readinessTrend.length)
+    : analytics?.readinessScore || 0;
+
+  const latestScore = analytics?.readinessScore || 0;
+
+  const sessionsThisMonth = analytics?.readinessTrend?.filter(session => {
+    const sessionDate = new Date(session.date);
+    const now = new Date();
+    return sessionDate.getMonth() === now.getMonth() && sessionDate.getFullYear() === now.getFullYear();
+  }).length || 0;
 
   const handleLogout = async () => {
     await signOut({ 
@@ -120,6 +185,13 @@ export default function DashboardPage() {
     } finally {
       setIsRoleSwitching(false)
     }
+  }
+
+  const getScoreColor = (grade: string) => {
+    if (['A+', 'A', 'A-'].includes(grade)) return 'text-green-600'
+    if (['B+', 'B', 'B-'].includes(grade)) return 'text-blue-600'
+    if (['C+', 'C', 'C-'].includes(grade)) return 'text-yellow-600'
+    return 'text-red-600'
   }
 
   const getApplicationStatusBadge = (status: string) => {
@@ -240,24 +312,25 @@ export default function DashboardPage() {
               {/* Readiness Gauge */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Conversation Readiness</CardTitle>
+                  <CardTitle className="text-lg">Interview Readiness</CardTitle>
+                  <CardDescription>Aggregate score from all sessions</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {analytics && (
                     <div className="text-center">
                       <div className="text-3xl font-bold text-primary mb-2">
-                        {analytics.readinessScore}%
+                        {aggregateReadinessScore}%
                       </div>
                       <div className="text-sm text-muted-foreground mb-4">
-                        {analytics.readinessScore > previousScore ? (
-                          <span className="text-green-600">↗ +{analytics.readinessScore - previousScore}% from last session</span>
-                        ) : analytics.readinessScore < previousScore ? (
-                          <span className="text-red-600">↘ {analytics.readinessScore - previousScore}% from last session</span>
+                        {latestScore > aggregateReadinessScore ? (
+                          <span className="text-green-600">↗ Latest score ({latestScore}%) is above average</span>
+                        ) : latestScore < aggregateReadinessScore ? (
+                          <span className="text-red-600">↘ Latest score ({latestScore}%) is below average</span>
                         ) : (
-                          <span className="text-gray-600">No change from last session</span>
+                          <span className="text-gray-600">Latest score matches the average</span>
                         )}
                       </div>
-                      <Progress value={analytics.readinessScore} className="w-full" />
+                      <Progress value={aggregateReadinessScore} className="w-full" />
                     </div>
                   )}
                 </CardContent>
@@ -267,17 +340,17 @@ export default function DashboardPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Practice Sessions</CardTitle>
-                  <CardDescription>Your progress this month</CardDescription>
+                  <CardDescription>Sessions completed this month</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {analytics && (
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Completed</span>
-                        <span className="font-semibold">{analytics.completedSessions}</span>
+                        <span className="text-sm text-muted-foreground">This Month</span>
+                        <span className="font-semibold">{sessionsThisMonth}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Total</span>
+                        <span className="text-sm text-muted-foreground">All Time</span>
                         <span className="font-semibold">{analytics.totalSessions}</span>
                       </div>
                       <div className="flex justify-between">
@@ -332,7 +405,7 @@ export default function DashboardPage() {
                   <CardContent>
                     <div className="flex justify-between items-center">
                       <div className="text-sm text-gray-600">
-                        Get instant feedback and improve your skills
+                        Practice with our conversational AI interviewer
                       </div>
                       <Button variant="outline" size="sm">
                         Start Practice
@@ -341,6 +414,7 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
               </Link>
+
 
               <Link href="/history" className="block">
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
@@ -404,13 +478,46 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No recent feedback</p>
-                <Button asChild className="mt-4" size="sm">
-                  <Link href="/practice/ai">Start Practice</Link>
-                </Button>
-              </div>
+              {analytics?.latestFeedback ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Overall Score</span>
+                    <div className="text-right">
+                      <p className={`font-semibold ${getScoreColor(analytics.latestFeedback.grade)}`}>{analytics.latestFeedback.grade} ({analytics.latestFeedback.score}%)</p>
+                    </div>
+                  </div>
+                  {analytics.latestFeedback.analysis?.speech_analysis?.pace_analysis?.average_pace != null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Speaking Pace</span>
+                      <span className="font-semibold">{Math.round(analytics.latestFeedback.analysis.speech_analysis.pace_analysis.average_pace)} WPM</span>
+                    </div>
+                  )}
+                  {analytics.latestFeedback.analysis?.speech_analysis?.filler_words?.total_count != null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Filler Words</span>
+                      <span className="font-semibold">{analytics.latestFeedback.analysis.speech_analysis.filler_words.total_count}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Date</span>
+                    <span>{new Date(analytics.latestFeedback.date).toLocaleDateString()}</span>
+                  </div>
+                  <Button asChild className="w-full !mt-4" size="sm">
+                    <Link href={`/history/${analytics.latestFeedback.sessionId}`}>
+                      View Full Report
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No recent feedback available.</p>
+                  <p className="text-xs">Complete a session to see your feedback.</p>
+                  <Button asChild className="mt-4" size="sm">
+                    <Link href="/practice/ai">Start First Practice</Link>
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -424,17 +531,12 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-sm">STAR Method Guide</h4>
-                  <p className="text-xs text-muted-foreground">Master behavioral interviews</p>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-sm">System Design Basics</h4>
-                  <p className="text-xs text-muted-foreground">Technical interview prep</p>
-                </div>
-                <Button asChild className="w-full" size="sm" variant="outline">
-                  <Link href="/library">View All Resources</Link>
-                </Button>
+                {readingMaterials.map((item, index) => (
+                  <Link href={item.link} key={index} target="_blank" rel="noopener noreferrer" className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <h4 className="font-medium text-sm">{item.title}</h4>
+                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                  </Link>
+                ))}
               </div>
             </CardContent>
           </Card>

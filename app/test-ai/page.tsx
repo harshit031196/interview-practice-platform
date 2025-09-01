@@ -135,7 +135,7 @@ export default function TestAIPage() {
                 {Object.entries(analysisResult.detailed_scores).map(([key, score]) => (
                   <div key={key} className="text-center">
                     <div className={`rounded-lg p-4 ${getScoreColor(score as number)}`}>
-                      <div className="text-2xl font-bold">{score}</div>
+                      <div className="text-2xl font-bold">{String(score)}</div>
                       <div className="text-sm capitalize">
                         {key.replace('_', ' ')}
                       </div>

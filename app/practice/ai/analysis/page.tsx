@@ -89,7 +89,8 @@ export default function VideoAnalysisPage() {
       setAnalysisState({ status: 'uploading', progress: 50 });
       
       // Return the GCS URI and session ID
-      const videoUri = `gs://wingman-interview-videos/${filename}`;
+      const bucketName = process.env.NEXT_PUBLIC_GOOGLE_CLOUD_BUCKET_NAME || 'wingman-interview-videos-1756476470';
+      const videoUri = `gs://${bucketName}/${filename}`;
       return { videoUri, sessionId: currentSessionId };
 
     } catch (error) {
@@ -390,7 +391,7 @@ export default function VideoAnalysisPage() {
             </Card>
 
             {/* Analysis Results */}
-            <VideoAnalysisResults analysisData={analysisState.results} />
+            <VideoAnalysisResults analysisData={analysisState.results} sessionId={analysisState.sessionId!} />
           </div>
         )}
 

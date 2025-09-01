@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { VideoRecorder } from '@/components/VideoRecorder'
+import UnifiedInterviewSession from '@/components/UnifiedInterviewSession'
 import { WingmanHeader } from '@/components/WingmanHeader'
 import { Brain, Clock, Mic, Upload, CheckCircle, ArrowRight } from 'lucide-react'
 
@@ -16,6 +17,7 @@ interface SessionData {
   difficulty: string
   duration: number
   status: string
+  isConversational?: boolean
   questions?: string[]
 }
 
@@ -48,37 +50,103 @@ export default function AISessionPage({ params }: { params: { sessionId: string 
     }
   }
 
-  const handleUploadComplete = async (filename: string) => {
-    setUploadedFilename(filename)
-    setCurrentStep('processing')
+  const handleSessionComplete = async (sessionResults: any) => {
+    console.log('Session completed with results:', sessionResults)
     
+    if (sessionResults.status === 'processing') {
+      // Move to processing step - analysis is happening in background
+      setCurrentStep('processing')
+      
+      // Poll for completion (similar to traditional flow)
+      const checkAnalysis = async () => {
+        try {
+          // Check if analysis is complete by trying to fetch results
+          const response = await fetch(`/api/video-analysis/results/${params.sessionId}`)
+          if (response.ok) {
+            // Redirect to feedback page when analysis is complete
+            router.push(`/feedback/${params.sessionId}`)
+            return
+          }
+          
+          // If not ready, check again in 5 seconds
+          setTimeout(checkAnalysis, 5000)
+        } catch (error) {
+          console.error('Error checking analysis status:', error)
+          // Still redirect to feedback after some time
+          setTimeout(() => router.push(`/feedback/${params.sessionId}`), 30000)
+        }
+      }
+      
+      // Start checking after a short delay
+      setTimeout(checkAnalysis, 3000)
+      
+    } else if (sessionResults.status === 'error') {
+      console.error('Session completed with error:', sessionResults.error)
+      // Redirect to feedback page even with errors
+      router.push(`/feedback/${params.sessionId}`)
+    } else {
+      // Legacy handling - direct completion, redirect to feedback
+      sessionStorage.setItem(`session_${params.sessionId}_results`, JSON.stringify(sessionResults))
+      router.push(`/feedback/${params.sessionId}`)
+    }
+  }
+
+  const handleUploadComplete = async (filename: string) => {
+    setUploadedFilename(filename);
+    setCurrentStep('processing');
+
     try {
-      // Trigger AI analysis
-      const response = await fetch('/api/ai/analyze', {
+      // This now correctly calls the video analysis API
+      const fullGcsUri = `gs://${process.env.NEXT_PUBLIC_GCS_BUCKET_NAME}/${filename}`;
+      console.log(`[Non-Conversational] Triggering analysis for full GCS URI: ${fullGcsUri}`);
+
+      const response = await fetch('/api/video-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           sessionId: params.sessionId,
-          videoPath: filename
-        })
-      })
+          videoUri: fullGcsUri,
+          analysisType: 'comprehensive',
+        }),
+      });
 
       if (response.ok) {
-        const result = await response.json()
-        console.log('AI analysis completed:', result)
-        setCurrentStep('completed')
+        console.log('Video analysis triggered successfully.');
+        // The response from trigger is usually just an acknowledgement
+        // Now, we start polling for results, similar to handleSessionComplete
+        pollForAnalysisResults();
       } else {
-        const error = await response.text()
-        console.error('AI analysis failed:', response.status, error)
-        alert(`AI analysis failed: ${response.status} - ${error}`)
-        setCurrentStep('completed') // Still show completed even if analysis fails
+        const error = await response.text();
+        console.error('Failed to trigger video analysis:', response.status, error);
+        alert(`Failed to start video analysis: ${response.status} - ${error}`);
+        setCurrentStep('completed'); // Or an error state
       }
     } catch (error) {
-      console.error('Error triggering AI analysis:', error)
-      setCurrentStep('completed') // Still show completed even if analysis fails
+      console.error('Error triggering video analysis:', error);
+      setCurrentStep('completed'); // Or an error state
     }
-  }
+  };
+
+  const pollForAnalysisResults = () => {
+    const checkAnalysis = async () => {
+      try {
+        const response = await fetch(`/api/video-analysis/results/${params.sessionId}`);
+        if (response.ok) {
+          router.push(`/feedback/${params.sessionId}`);
+          return;
+        }
+        // If not ready, poll again
+        setTimeout(checkAnalysis, 5000);
+      } catch (error) {
+        console.error('Error polling for analysis status:', error);
+        // Optional: Stop polling after some attempts and show an error
+        setTimeout(() => router.push(`/feedback/${params.sessionId}`), 30000); // Fallback redirect
+      }
+    };
+    // Start polling
+    setTimeout(checkAnalysis, 3000);
+  };
 
   const handleUploadError = (error: string) => {
     console.error('Upload error:', error)
@@ -175,7 +243,7 @@ export default function AISessionPage({ params }: { params: { sessionId: string 
         </div>
 
         {/* Content based on current step */}
-        {currentStep === 'intro' && (
+        {currentStep === 'intro' && !sessionData.isConversational && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -231,7 +299,19 @@ export default function AISessionPage({ params }: { params: { sessionId: string 
           </Card>
         )}
 
-        {currentStep === 'recording' && (
+        {/* Unified Interview Session for Conversational Mode */}
+        {sessionData.isConversational && (
+          <UnifiedInterviewSession
+            sessionId={params.sessionId}
+            interviewType={sessionData.interviewType}
+            difficulty={sessionData.difficulty}
+            duration={sessionData.duration}
+            isConversational={true}
+            onComplete={handleSessionComplete}
+          />
+        )}
+
+        {currentStep === 'recording' && !sessionData.isConversational && (
           <div className="space-y-6">
             <Card>
               <CardHeader>

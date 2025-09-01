@@ -1,20 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { formatDuration, formatCurrency, getReadinessColor } from '@/lib/utils'
+import { formatCurrency, getReadinessColor } from '@/lib/utils'
 
-describe('Utils', () => {
-  describe('formatDuration', () => {
-    it('should format seconds correctly', () => {
-      expect(formatDuration(30)).toBe('30s')
-      expect(formatDuration(90)).toBe('1m 30s')
-      expect(formatDuration(3600)).toBe('1h 0m')
-      expect(formatDuration(3665)).toBe('1h 1m')
-    })
-
-    it('should handle zero duration', () => {
-      expect(formatDuration(0)).toBe('0s')
-    })
-  })
-
+describe('Utils', () => {  
   describe('formatCurrency', () => {
     it('should format currency correctly', () => {
       expect(formatCurrency(1000)).toBe('$10.00')

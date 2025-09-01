@@ -58,13 +58,15 @@ async function performAIAnalysis(videoPath: string, sessionId: string) {
 }
 
 export async function POST(request: NextRequest) {
+  let sessionId: string | undefined;
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { sessionId, videoPath } = await request.json();
+    const { sessionId: requestSessionId, videoPath } = await request.json();
+    sessionId = requestSessionId;
 
     if (!sessionId) {
       return NextResponse.json(
@@ -139,8 +141,16 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('AI analysis error:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      sessionId: sessionId || 'unknown'
+    });
     return NextResponse.json(
-      { error: 'Analysis failed' },
+      { 
+        error: 'Analysis failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

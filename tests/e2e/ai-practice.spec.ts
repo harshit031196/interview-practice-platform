@@ -9,11 +9,11 @@ test.describe('AI Practice Flow', () => {
     await expect(page.getByText('Interview Type')).toBeVisible()
     
     // Select interview type
-    await page.getByText('Behavioral').click()
-    await expect(page.locator('[data-state="selected"]')).toContainText('Behavioral')
+    await page.getByText('Behavioral').first().click()
+    await expect(page.locator('.border-primary')).toContainText('Behavioral')
     
     // Select difficulty
-    await page.getByText('Medium').click()
+    await page.getByText('Medium').first().click()
     
     // Adjust duration
     await expect(page.getByText(/Duration: \d+ minutes/)).toBeVisible()
@@ -41,11 +41,11 @@ test.describe('AI Practice Flow', () => {
     await expect(page.getByRole('button', { name: 'Start Interview' })).toBeDisabled()
     
     // Select only interview type
-    await page.getByText('Technical').click()
+    await page.getByText('Technical').first().click()
     await expect(page.getByRole('button', { name: 'Start Interview' })).toBeDisabled()
     
     // Select difficulty - now should be enabled
-    await page.getByText('Hard').click()
+    await page.getByText('Hard').first().click()
     await expect(page.getByRole('button', { name: 'Start Interview' })).toBeEnabled()
   })
 })

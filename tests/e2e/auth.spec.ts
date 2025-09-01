@@ -5,7 +5,7 @@ test.describe('Authentication Flow', () => {
     await page.goto('/')
     
     // Check landing page elements
-    await expect(page.locator('h1')).toContainText('Master Your Interview Skills')
+    await expect(page.locator('h1')).toContainText('Prepare for Difficult Conversations with Wingman')
     await expect(page.getByRole('button', { name: 'Start Practicing Free' })).toBeVisible()
     
     // Open auth modal
@@ -20,6 +20,9 @@ test.describe('Authentication Flow', () => {
     // Open signup modal
     await page.getByRole('button', { name: 'Get Started' }).click()
     
+    // Switch to signup tab
+    await page.getByRole('tab', { name: 'Sign Up' }).click()
+    
     // Fill signup form
     await page.getByLabel('Full Name').fill('Test User')
     await page.getByLabel('Email').fill('test@example.com')
@@ -31,9 +34,13 @@ test.describe('Authentication Flow', () => {
   })
 
   test('should allow user signin', async ({ page }) => {
-    await page.goto('/auth/signin')
+    await page.goto('/')
     
-    await expect(page.locator('h2')).toContainText('Sign in to your account')
+    // Open auth modal
+    await page.getByRole('button', { name: 'Get Started' }).click()
+    
+    // Modal should default to signin tab
+    await expect(page.getByRole('tab', { name: 'Sign In', selected: true })).toBeVisible()
     
     // Fill signin form
     await page.getByLabel('Email').fill('pm.candidate@example.com')

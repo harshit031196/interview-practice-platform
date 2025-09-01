@@ -173,20 +173,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <Button
                 variant="outline"
                 onClick={() => handleOAuthSignIn('google')}
                 disabled={isLoading}
               >
                 Google
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleOAuthSignIn('microsoft')}
-                disabled={isLoading}
-              >
-                Microsoft
               </Button>
             </div>
           </TabsContent>
@@ -247,20 +240,13 @@ export function AuthModal({ open, onOpenChange, defaultTab = 'signin' }: AuthMod
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <Button
                 variant="outline"
                 onClick={() => handleOAuthSignIn('google')}
                 disabled={isLoading}
               >
                 Google
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleOAuthSignIn('microsoft')}
-                disabled={isLoading}
-              >
-                Microsoft
               </Button>
             </div>
           </TabsContent>

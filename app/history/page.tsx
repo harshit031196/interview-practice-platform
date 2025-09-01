@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +30,7 @@ interface InterviewSession {
   status: 'COMPLETED' | 'IN_PROGRESS' | 'CANCELLED'
   duration?: number
   hasVideoAnalysis: boolean
+  isConversational?: boolean
   overallScore?: string
   analysisData?: {
     overall_score?: {
@@ -47,6 +49,19 @@ interface InterviewSession {
     }
     facial_analysis?: {
       dominant_emotion?: string
+    }
+    // Conversational AI analysis data
+    analysis?: {
+      overallScore?: number
+      starMethodAnalysis?: {
+        score?: number
+        feedback?: string
+      }
+      communicationSkills?: {
+        clarity?: { score?: number }
+        structure?: { score?: number }
+        conciseness?: { score?: number }
+      }
     }
     confidence_analysis?: {
       confidence_score?: number
@@ -120,17 +135,74 @@ export default function InterviewHistoryPage() {
   }
 
   const getScoreColor = (grade?: string) => {
-    if (!grade) return 'text-gray-500'
-    const letter = grade.charAt(0)
-    switch (letter) {
-      case 'A': return 'text-green-600'
-      case 'B': return 'text-blue-600'
-      case 'C': return 'text-yellow-600'
-      case 'D': return 'text-orange-600'
-      case 'F': return 'text-red-600'
-      default: return 'text-gray-500'
-    }
+    if (!grade) return 'text-gray-500';
+    if (['A+', 'A'].includes(grade)) return 'text-green-600';
+    if (['A-', 'B+'].includes(grade)) return 'text-blue-600';
+    if (['B', 'B-'].includes(grade)) return 'text-yellow-600';
+    if (['C+', 'C'].includes(grade)) return 'text-orange-600';
+    return 'text-red-600';
+  };
+
+  const getGradeFromScore = (score: number): string => {
+    if (score >= 95) return 'A+'
+    if (score >= 90) return 'A'
+    if (score >= 85) return 'A-'
+    if (score >= 80) return 'B+'
+    if (score >= 75) return 'B'
+    if (score >= 70) return 'B-'
+    if (score >= 65) return 'C+'
+    if (score >= 60) return 'C'
+    if (score >= 55) return 'C-'
+    if (score >= 50) return 'D'
+    return 'F'
   }
+
+  const formatDuration = (seconds?: number) => {
+    if (seconds === undefined || seconds === null || isNaN(seconds)) return 'N/A';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.round(seconds % 60);
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${remainingSeconds}s`;
+  };
+
+  const getSessionScore = (session: InterviewSession): { score: number; grade: string } | null => {
+    let score: number | undefined;
+    let grade: string | undefined;
+
+    // Prioritize detailed analysis data if available
+    if (session.isConversational && session.analysisData?.analysis?.overallScore) {
+      score = session.analysisData.analysis.overallScore;
+    } else if (session.analysisData?.overall_score?.overall_score) {
+      score = Math.round(session.analysisData.overall_score.overall_score * 100);
+      grade = session.analysisData.overall_score.grade;
+    } else if (session.overallScore) {
+      // Fallback to top-level overallScore (string)
+      const parsedScore = parseInt(session.overallScore, 10);
+      if (!isNaN(parsedScore)) {
+        score = parsedScore;
+      }
+    }
+
+    if (typeof score === 'number') {
+      // If grade is not already set from analysis data, calculate it
+      if (!grade) {
+        grade = getGradeFromScore(score);
+      }
+      return { score, grade };
+    }
+
+    return null;
+  };
+
+  const sessionsWithScores = sessions
+    .map(getSessionScore)
+    .filter((result): result is { score: number; grade: string } => result !== null);
+
+  const averageScore = sessionsWithScores.length > 0
+    ? Math.round(sessionsWithScores.reduce((acc, { score }) => acc + score, 0) / sessionsWithScores.length)
+    : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -176,15 +248,7 @@ export default function InterviewHistoryPage() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Average Score</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {sessions.filter(s => s.analysisData?.overall_score?.overall_score).length > 0
-                      ? Math.round(
-                          sessions
-                            .filter(s => s.analysisData?.overall_score?.overall_score)
-                            .reduce((acc, s) => acc + ((s.analysisData?.overall_score?.overall_score || 0) * 100), 0) /
-                          sessions.filter(s => s.analysisData?.overall_score?.overall_score).length
-                        ) + '%'
-                      : 'N/A'
-                    }
+                    {averageScore !== null ? `${averageScore}%` : 'N/A'}
                   </p>
                 </div>
               </div>
@@ -216,189 +280,79 @@ export default function InterviewHistoryPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4">
+            <div className="space-y-4">
               {sessions.map((session) => {
-                const sessionType = getSessionTypeDisplay(session.type)
+                const sessionType = getSessionTypeDisplay(session.type);
+                const scoreData = getSessionScore(session);
                 return (
-                  <Card key={session.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="space-y-4">
-                        {/* Session Header */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Badge className={sessionType.color}>
-                              {sessionType.label}
+                  <Card key={session.id} className="hover:shadow-md transition-shadow overflow-hidden">
+                    <div className="flex flex-col">
+                      {/* Session Header */}
+                      <div className="flex items-center justify-between p-6">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <Badge className={sessionType.color}>{sessionType.label}</Badge>
+                          {session.isConversational && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                              <MessageSquare className="w-3 h-3 mr-1" />
+                              Conversational AI
                             </Badge>
-                            <div className="flex items-center text-sm text-gray-500">
-                              <Calendar className="w-4 h-4 mr-1" />
-                              {new Date(session.createdAt).toLocaleDateString()}
-                            </div>
-                            <div className="flex items-center text-sm text-gray-500">
-                              <Clock className="w-4 h-4 mr-1" />
-                              {new Date(session.createdAt).toLocaleTimeString([], { 
-                                hour: '2-digit', 
-                                minute: '2-digit',
-                                hour12: true 
-                              })}
-                            </div>
-                            {session.duration && (
-                              <div className="flex items-center text-sm text-gray-500">
-                                <Activity className="w-4 h-4 mr-1" />
-                                {Math.round(session.duration / 60)} min
+                          )}
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Calendar className="w-4 h-4 mr-1.5" />
+                            {new Date(session.createdAt).toLocaleDateString()}
+                          </div>
+                          <div className="flex items-center text-sm text-gray-500">
+                            <Clock className="w-4 h-4 mr-1.5" />
+                            {formatDuration(session.duration)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          {scoreData && (
+                             <div className="text-right">
+                               <p className={`text-xl font-bold ${getScoreColor(scoreData.grade)}`}>{scoreData.grade}</p>
+                               <p className="text-sm text-gray-500">{scoreData.score}%</p>
+                             </div>
+                          )}
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/history/${session.id}`}>View Report</Link>
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Analysis KPIs */}
+                      {(session.hasVideoAnalysis || session.isConversational) && session.analysisData && (
+                        <div className="bg-gray-50/70 border-t border-gray-200 px-6 py-3">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                            {session.analysisData.speech_analysis?.pace_analysis?.average_pace != null && (
+                              <div>
+                                <p className="text-xs text-gray-500">Pace</p>
+                                <p className="font-semibold text-gray-800 text-sm">{Math.round(session.analysisData.speech_analysis.pace_analysis.average_pace)} WPM</p>
                               </div>
                             )}
-                          </div>
-
-                          <div className="flex gap-2">
-                            {session.hasVideoAnalysis ? (
-                              <Link href={`/feedback/${session.id}`}>
-                                <Button variant="outline" size="sm">
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  View Full Report
-                                  <ArrowRight className="w-4 h-4 ml-2" />
-                                </Button>
-                              </Link>
-                            ) : (
-                              (() => {
-                                // Convert UTC timestamp to local timezone for accurate time calculation
-                                const sessionDate = new Date(session.createdAt);
-                                const now = new Date();
-                                
-                                // Account for timezone offset - session.createdAt is in UTC
-                                const timeDiff = now.getTime() - sessionDate.getTime();
-                                const minutesAgo = Math.floor(timeDiff / (1000 * 60));
-                                
-                                // If session is less than 10 minutes old, show processing message
-                                if (minutesAgo < 10) {
-                                  return (
-                                    <Badge variant="outline" className="text-blue-600 border-blue-200">
-                                      <Clock className="w-3 h-3 mr-1" />
-                                      Processing ({minutesAgo}m ago)
-                                    </Badge>
-                                  );
-                                } else {
-                                  return (
-                                    <Badge variant="outline" className="text-gray-500">
-                                      No Analysis Available
-                                    </Badge>
-                                  );
-                                }
-                              })()
+                            {session.analysisData.speech_analysis?.filler_words?.total_count != null && (
+                              <div>
+                                <p className="text-xs text-gray-500">Filler Words</p>
+                                <p className="font-semibold text-gray-800 text-sm">{session.analysisData.speech_analysis.filler_words.total_count}</p>
+                              </div>
+                            )}
+                            {session.analysisData.confidence_analysis?.confidence_score != null && (
+                              <div>
+                                <p className="text-xs text-gray-500">Confidence</p>
+                                <p className="font-semibold text-gray-800 text-sm">{Math.round(session.analysisData.confidence_analysis.confidence_score * 100)}%</p>
+                              </div>
+                            )}
+                            {session.analysisData.facial_analysis?.dominant_emotion && (
+                              <div>
+                                <p className="text-xs text-gray-500">Top Emotion</p>
+                                <p className="font-semibold text-gray-800 text-sm capitalize">{session.analysisData.facial_analysis.dominant_emotion.toLowerCase()}</p>
+                              </div>
                             )}
                           </div>
                         </div>
-
-                        {/* Analysis Results Display */}
-                        {session.hasVideoAnalysis && session.analysisData ? (
-                          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-                            {/* Overall Score */}
-                            {session.analysisData.overall_score && (
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Star className="w-5 h-5 text-yellow-500" />
-                                  <span className="font-medium">Overall Performance</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-2xl font-bold ${getScoreColor(session.analysisData.overall_score.grade)}`}>
-                                    {session.analysisData.overall_score.grade}
-                                  </span>
-                                  <span className="text-sm text-gray-600">
-                                    ({Math.round((session.analysisData.overall_score.overall_score || 0) * 100)}%)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Key Metrics */}
-                            {session.analysisData.speech_analysis && (
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* Speaking Pace */}
-                                {session.analysisData.speech_analysis.pace_analysis && (
-                                  <div className="bg-white rounded-lg p-3 border">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <MessageSquare className="w-4 h-4 text-blue-600" />
-                                      <span className="text-sm font-medium text-gray-700">Speaking Pace</span>
-                                    </div>
-                                    <div className="text-lg font-bold text-blue-600">
-                                      {Math.round(session.analysisData.speech_analysis.pace_analysis?.average_pace || 0)} WPM
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {(session.analysisData.speech_analysis.pace_analysis?.average_pace || 0) >= 140 && 
-                                       (session.analysisData.speech_analysis.pace_analysis?.average_pace || 0) <= 160 ? 
-                                       'Optimal pace' : 'Room for improvement'}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Filler Words */}
-                                {session.analysisData.speech_analysis.filler_words && (
-                                  <div className="bg-white rounded-lg p-3 border">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <Activity className="w-4 h-4 text-orange-600" />
-                                      <span className="text-sm font-medium text-gray-700">Filler Words</span>
-                                    </div>
-                                    <div className="text-lg font-bold text-orange-600">
-                                      {session.analysisData.speech_analysis.filler_words.total_count || 0}
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {(session.analysisData.speech_analysis.filler_words.total_count || 0) <= 2 ? 
-                                       'Excellent clarity' : 'Consider reducing'}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Confidence Score */}
-                                {session.analysisData.confidence_analysis && (
-                                  <div className="bg-white rounded-lg p-3 border">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <CheckCircle className="w-4 h-4 text-green-600" />
-                                      <span className="text-sm font-medium text-gray-700">Confidence</span>
-                                    </div>
-                                    <div className="text-lg font-bold text-green-600">
-                                      {Math.round((session.analysisData.confidence_analysis.confidence_score || 0) * 100)}%
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                      {(session.analysisData.confidence_analysis.confidence_score || 0) >= 0.7 ? 
-                                       'Strong presence' : 'Room to grow'}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Quick Insights */}
-                            {session.analysisData.speech_analysis?.transcript && (
-                              <div className="bg-blue-50 rounded-lg p-3 border-l-4 border-blue-400">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <MessageSquare className="w-4 h-4 text-blue-600" />
-                                  <span className="text-sm font-medium text-blue-800">Key Insights</span>
-                                </div>
-                                <div className="text-sm text-blue-700">
-                                  Response length: {session.analysisData.speech_analysis.transcript.split(' ').length} words
-                                  {session.analysisData.facial_analysis?.dominant_emotion && (
-                                    <span className="ml-4">• Dominant emotion: {session.analysisData.facial_analysis.dominant_emotion}</span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : session.hasVideoAnalysis ? (
-                          <div className="bg-yellow-50 rounded-lg p-3 border-l-4 border-yellow-400">
-                            <div className="text-sm text-yellow-800">
-                              Analysis data is being processed. Check back in a few minutes.
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="bg-gray-50 rounded-lg p-3 border-l-4 border-gray-400">
-                            <div className="text-sm text-gray-600">
-                              No video analysis available for this session.
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
+                      )}
+                    </div>
                   </Card>
-                )
+                );
               })}
             </div>
           )}

@@ -7,10 +7,9 @@ test.describe('Dashboard Flow', () => {
     
     // Check dashboard elements
     await expect(page.locator('h1')).toContainText('Welcome back')
-    await expect(page.getByText('Interview Readiness')).toBeVisible()
-    await expect(page.getByText('Start AI Interview')).toBeVisible()
+    await expect(page.getByText('Conversation Readiness')).toBeVisible()
+    await expect(page.getByText('AI Practice Sessions')).toBeVisible()
     await expect(page.getByText('Book an Expert')).toBeVisible()
-    await expect(page.getByText('Find a Peer')).toBeVisible()
   })
 
   test('should navigate to AI practice from dashboard', async ({ page }) => {

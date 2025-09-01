@@ -1,7 +1,14 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+require('dotenv').config({ path: '.env.local' });
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
 
 async function createTestUser() {
   try {
@@ -11,7 +18,8 @@ async function createTestUser() {
     });
 
     if (existingUser) {
-      console.log('User already exists');
+      console.log('User already exists:', existingUser.email);
+      console.log('Password: password123');
       return;
     }
 

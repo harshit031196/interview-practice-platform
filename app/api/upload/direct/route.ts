@@ -1,20 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { getToken } from 'next-auth/jwt';
 import { authOptions } from '@/lib/auth';
 import { Storage } from '@google-cloud/storage';
+import { prisma } from '@/lib/prisma';
 
 // Initialize Google Cloud Storage
 const storage = new Storage({
-  projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  projectId: 'wingman-interview-470419',
+  // Use Application Default Credentials (no keyFilename needed)
 });
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[API] POST /api/upload/direct - Checking authentication');
+    
+    // Try to get user from JWT token first
+    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+    
+    // Then try to get user from database session
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    
+    // Get user ID from either JWT token or session
+    let userId = token?.sub || session?.user?.id;
+    
+    // If no JWT or session, check for database session directly
+    if (!userId) {
+      // Check standard session token first
+      let sessionToken = request.cookies.get('next-auth.session-token')?.value;
+      
+      // If not found, check for database-specific session token (for hybrid fallback)
+      if (!sessionToken) {
+        sessionToken = request.cookies.get('next-auth.database-session')?.value;
+        if (sessionToken) {
+          console.log('[API] Found database-specific session token');
+        }
+      }
+      
+      if (sessionToken) {
+        console.log('[API] Checking database session with token');
+        try {
+          const dbSession = await prisma.session.findUnique({
+            where: { sessionToken },
+            include: { user: true },
+          });
+          
+          if (dbSession && dbSession.expires > new Date()) {
+            userId = dbSession.userId;
+            console.log('[API] Authenticated via database session for user ID:', userId);
+          } else {
+            console.log('[API] Database session invalid or expired');
+          }
+        } catch (error) {
+          console.error('[API] Error checking database session:', error);
+        }
+      }
+    }
+    
+    if (!userId) {
+      console.error('[API] Unauthorized upload attempt - no valid session');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log(`[API] User authenticated for upload: ${userId}`);
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -37,10 +85,10 @@ export async function POST(request: NextRequest) {
 
     // Generate unique filename
     const timestamp = Date.now();
-    const filename = `interviews/${session.user.id}/${sessionId}/${timestamp}_${file.name}`;
+    const filename = `interviews/${userId}/${sessionId}/${timestamp}_${file.name}`;
 
     // Get bucket
-    const bucketName = process.env.GOOGLE_CLOUD_BUCKET_NAME;
+    const bucketName = 'wingman-interview-videos-harshit-2024';
     if (!bucketName) {
       return NextResponse.json(
         { error: 'Storage not configured' },
@@ -55,29 +103,88 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    console.log('Upload details:', {
+      filename,
+      fileSize: file.size,
+      fileType: file.type,
+      bufferSize: buffer.length,
+      bucketName,
+      userId,
+      sessionId
+    });
+
     // Upload file directly
     await fileObj.save(buffer, {
       metadata: {
         contentType: file.type,
         metadata: {
           sessionId: sessionId,
-          userId: session.user.id,
+          userId: userId,
           uploadedAt: new Date().toISOString(),
         },
       },
     });
 
+    // Generate video URI for analysis
+    const videoUri = `gs://${bucketName}/${filename}`;
+    
+    console.log('File uploaded successfully to:', videoUri);
+
+    // Store or update recording in database
+    try {
+      // Check if a recording already exists for this session
+      const existingRecording = await prisma.recording.findUnique({
+        where: { sessionId: sessionId }
+      });
+      
+      if (existingRecording) {
+        // Update the existing recording with the new URL
+        await prisma.recording.update({
+          where: { id: existingRecording.id },
+          data: { url: videoUri }
+        });
+        console.log('Updated existing recording entry in database');
+      } else {
+        // Create a new recording if none exists
+        await prisma.recording.create({
+          data: {
+            sessionId: sessionId,
+            url: videoUri,
+            durationSec: 0, // Will be updated after analysis
+            consent: true, // Assuming consent was given during recording
+          }
+        });
+        console.log('New recording entry created in database');
+      }
+    } catch (dbError) {
+      console.error('Failed to create/update recording entry:', dbError);
+      // Don't fail the upload if database entry fails
+    }
+
     return NextResponse.json({
       success: true,
       filename: filename,
+      videoUri: videoUri,
       size: file.size,
       contentType: file.type,
     });
 
   } catch (error) {
     console.error('Upload error:', error);
+    
+    // Provide more detailed error information
+    let errorMessage = 'Upload failed';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    
     return NextResponse.json(
-      { error: 'Upload failed' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

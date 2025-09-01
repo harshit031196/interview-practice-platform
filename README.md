@@ -59,8 +59,8 @@ A production-ready MVP web application that helps you prepare for difficult conv
    
    Fill in your environment variables:
    ```env
-   # Database
-   DATABASE_URL="postgresql://username:password@localhost:5432/interview_practice"
+   # Database - Google Cloud SQL
+   DATABASE_URL="postgresql://wingman_user:WingmanSecure2024!@127.0.0.1:5433/wingman_interview"
    
    # NextAuth
    NEXTAUTH_URL="http://localhost:3000"

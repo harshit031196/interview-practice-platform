@@ -9,19 +9,28 @@ export async function GET(
   { params }: { params: { sessionId: string } }
 ) {
   try {
+    // Check authentication - support both session and API key
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const apiKey = request.headers.get('x-api-key');
+    const expectedApiKey = process.env.API_SECRET_KEY;
+    
+    // Allow access if either valid session OR valid API key
+    const isAuthenticated = session || (apiKey && expectedApiKey && apiKey === expectedApiKey);
+    
+    if (!isAuthenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { sessionId } = params;
 
     // Try to find stored video analysis results
+    // For API key auth, we can't filter by userId since there's no session
+    const whereClause = session?.user?.id 
+      ? { sessionId: sessionId, userId: session.user.id }
+      : { sessionId: sessionId };
+    
     const analysisResult = await prisma.videoAnalysis.findFirst({
-      where: {
-        sessionId: sessionId,
-        userId: session.user.id,
-      },
+      where: whereClause,
       orderBy: {
         createdAt: 'desc'
       }
@@ -36,7 +45,14 @@ export async function GET(
     // Parse the stored JSON results
     const analysisData = JSON.parse(analysisResult.results);
 
-    return NextResponse.json(analysisData);
+    // Handle both new (flat) and old (nested) data structures for backward compatibility.
+    if (analysisData && analysisData.results) {
+      // Old format: data is nested inside a 'results' key.
+      return NextResponse.json(analysisData.results);
+    } else {
+      // New format: data is already in the correct flat structure.
+      return NextResponse.json(analysisData);
+    }
 
   } catch (error) {
     console.error('Error fetching video analysis results:', error);
@@ -53,8 +69,15 @@ export async function POST(
   { params }: { params: { sessionId: string } }
 ) {
   try {
+    // Check authentication - support both session and API key
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const apiKey = request.headers.get('x-api-key');
+    const expectedApiKey = process.env.API_SECRET_KEY;
+    
+    // Allow access if either valid session OR valid API key
+    const isAuthenticated = session || (apiKey && expectedApiKey && apiKey === expectedApiKey);
+    
+    if (!isAuthenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -62,28 +85,39 @@ export async function POST(
     const analysisData = await request.json();
 
     // Store the analysis results
-    const result = await prisma.videoAnalysis.upsert({
-      where: {
-        sessionId_userId: {
+    // For API key auth, we need to handle the case where there's no user session
+    if (session?.user?.id) {
+      // Session-based auth - store with user ID
+      const result = await prisma.videoAnalysis.upsert({
+        where: {
+          sessionId_userId: {
+            sessionId: sessionId,
+            userId: session.user.id,
+          }
+        },
+        update: {
+          results: JSON.stringify(analysisData),
+          updatedAt: new Date(),
+        },
+        create: {
           sessionId: sessionId,
           userId: session.user.id,
-        }
-      },
-      update: {
-        results: JSON.stringify(analysisData),
-        updatedAt: new Date(),
-      },
-      create: {
-        sessionId: sessionId,
-        userId: session.user.id,
-        results: JSON.stringify(analysisData),
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      analysisId: result.id,
-    });
+          results: JSON.stringify(analysisData),
+        },
+      });
+      
+      return NextResponse.json({
+        success: true,
+        analysisId: result.id,
+      });
+    } else {
+      // API key auth - skip database storage since we don't have a user ID
+      console.log('Skipping database storage - API key authentication used (no user session)');
+      return NextResponse.json({
+        success: true,
+        message: 'Analysis completed but not stored (API key authentication)',
+      });
+    }
 
   } catch (error) {
     console.error('Error storing video analysis results:', error);

@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,19 +32,86 @@ export default function ExpertsPage() {
     availability: '',
   })
 
-  const { data: experts, isLoading } = useQuery<Expert[]>({
-    queryKey: ['experts', filters],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (filters.tags && filters.tags !== 'all') params.append('tags', filters.tags)
-      if (filters.industry && filters.industry !== 'all') params.append('industry', filters.industry)
-      if (filters.availability && filters.availability !== 'all') params.append('availabilityWindow', filters.availability)
+  const [isLoading, setIsLoading] = useState(true);
+  const [experts, setExperts] = useState<Expert[]>([]);
 
-      const response = await fetch(`/api/experts?${params}`)
-      if (!response.ok) throw new Error('Failed to fetch experts')
-      return response.json()
-    },
-  })
+  useEffect(() => {
+    const dummyExperts: Expert[] = [
+      {
+        id: '1',
+        name: 'Sarah Chen',
+        bio: 'Senior Engineering Manager at Google with over 15 years of experience in distributed systems and technical leadership. Passionate about mentoring the next generation of engineers.',
+        expertiseTags: ['System Design', 'Technical Leadership', 'Career Growth'],
+        yearsExp: 15,
+        verified: true,
+        rateCents: 15000,
+        nextSlots: [
+          { start: new Date(new Date().getTime() + 24 * 60 * 60 * 1000), end: new Date(new Date().getTime() + 25 * 60 * 60 * 1000) },
+          { start: new Date(new Date().getTime() + 48 * 60 * 60 * 1000), end: new Date(new Date().getTime() + 49 * 60 * 60 * 1000) },
+        ],
+      },
+      {
+        id: '2',
+        name: 'Michael Rodriguez',
+        bio: 'Principal Product Manager at Amazon, specializing in consumer-facing products and product strategy. Expert in A/B testing and data-driven decision making.',
+        expertiseTags: ['Product Strategy', 'Data Analysis', 'User Research'],
+        yearsExp: 12,
+        verified: true,
+        rateCents: 18000,
+        nextSlots: [
+          { start: new Date(new Date().getTime() + 2 * 24 * 60 * 60 * 1000), end: new Date(new Date().getTime() + 2 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000) },
+        ],
+      },
+      {
+        id: '3',
+        name: 'Emily White',
+        bio: 'Staff Software Engineer at Meta, focused on scalability and performance of large-scale social media platforms. Core contributor to several open-source projects.',
+        expertiseTags: ['Scalability', 'Performance Engineering', 'React'],
+        yearsExp: 8,
+        verified: true,
+        rateCents: 12000,
+        nextSlots: [],
+      },
+       {
+        id: '4',
+        name: 'David Lee',
+        bio: 'Director of Product Design at Netflix. Leads a team of designers creating intuitive and beautiful user experiences for millions of users worldwide.',
+        expertiseTags: ['Product Design', 'UI/UX', 'Design Systems'],
+        yearsExp: 14,
+        verified: true,
+        rateCents: 17000,
+        nextSlots: [
+          { start: new Date(new Date().getTime() + 3 * 24 * 60 * 60 * 1000), end: new Date(new Date().getTime() + 3 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000) },
+        ],
+      },
+      {
+        id: '5',
+        name: 'Jessica Brown',
+        bio: 'AI Research Scientist at DeepMind. Her work focuses on large language models and their applications in creative industries. PhD in Computer Science from Stanford.',
+        expertiseTags: ['Machine Learning', 'AI Ethics', 'NLP'],
+        yearsExp: 7,
+        verified: false,
+        nextSlots: [
+           { start: new Date(new Date().getTime() + 5 * 24 * 60 * 60 * 1000), end: new Date(new Date().getTime() + 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000) },
+        ],
+      },
+       {
+        id: '6',
+        name: 'Daniel Green',
+        bio: 'Cybersecurity consultant with a background in ethical hacking and penetration testing. Helps Fortune 500 companies secure their digital assets.',
+        expertiseTags: ['Cybersecurity', 'Penetration Testing', 'Cloud Security'],
+        yearsExp: 10,
+        verified: true,
+        rateCents: 16000,
+        nextSlots: [],
+      },
+    ];
+
+    setTimeout(() => {
+      setExperts(dummyExperts);
+      setIsLoading(false);
+    }, 1000);
+  }, []);
 
   const filteredExperts = experts?.filter(expert =>
     expert.name.toLowerCase().includes(filters.search.toLowerCase()) ||

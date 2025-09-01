@@ -57,8 +57,8 @@ nano .env.local
 
 **Required Environment Variables:**
 ```env
-# Database (Required)
-DATABASE_URL="postgresql://username:password@localhost:5432/interview_practice"
+# Database (Required) - Google Cloud SQL
+DATABASE_URL="postgresql://wingman_user:WingmanSecure2024!@127.0.0.1:5433/wingman_interview"
 
 # NextAuth (Required)
 NEXTAUTH_URL="http://localhost:3000"
@@ -213,7 +213,7 @@ npm run db:seed
 
 ### Environment Variables
 Set these in your production environment:
-- `DATABASE_URL` - Production PostgreSQL URL
+- `DATABASE_URL` - Production Google Cloud SQL URL
 - `NEXTAUTH_URL` - Your production domain
 - `NEXTAUTH_SECRET` - Strong secret key
 - OAuth credentials for production domains

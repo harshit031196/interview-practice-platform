@@ -44,18 +44,53 @@ export default function SignInPage() {
     setError(null)
 
     try {
+      console.log('🔄 Starting sign in process for:', data.email)
+      
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
         redirect: false,
+        callbackUrl: callbackUrl,
       })
+
+      console.log('📝 Sign in result:', { ok: result?.ok, error: result?.error })
 
       if (result?.error) {
         throw new Error('Invalid email or password')
       }
 
-      router.push(callbackUrl)
+      if (result?.ok) {
+        // For database sessions, wait longer with exponential backoff
+        let session = null
+        let retries = 0
+        const maxRetries = 8
+        
+        while (!session && retries < maxRetries) {
+          const delay = Math.min(200 * Math.pow(1.5, retries), 2000) // Exponential backoff with 2s max
+          console.log(`⏱️ Waiting ${delay}ms for session (attempt ${retries + 1}/${maxRetries})`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          session = await getSession()
+          console.log('🔍 Session check result:', session ? 'Found' : 'Not found')
+          retries++
+        }
+        
+        if (session) {
+          console.log('✅ Session created successfully:', session.user?.email)
+          router.push(callbackUrl)
+          return
+        } else {
+          console.error('❌ Session creation failed after', maxRetries, 'retries')
+          
+          // Try one more time with direct navigation
+          console.log('🔄 Attempting direct navigation to:', callbackUrl)
+          router.push(callbackUrl)
+          return
+        }
+      } else {
+        throw new Error('Authentication failed')
+      }
     } catch (err) {
+      console.error('❌ Sign in error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setIsLoading(false)

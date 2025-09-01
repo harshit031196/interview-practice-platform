@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 // Get AI session details
 export async function GET(
@@ -15,19 +16,15 @@ export async function GET(
 
     const { sessionId } = params;
 
-    // Mock session data for now - in production this would come from database
-    const mockSession = {
-      id: sessionId,
-      interviewType: 'Behavioral',
-      difficulty: 'Medium',
-      duration: 15,
-      status: 'IN_PROGRESS',
-      questions: [
-        "Tell me about a time when you had to work with a difficult team member. How did you handle the situation, and what was the outcome?"
-      ]
-    };
+    const sessionData = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+    });
 
-    return NextResponse.json(mockSession);
+    if (!sessionData) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(sessionData);
 
   } catch (error) {
     console.error('Error fetching session:', error);

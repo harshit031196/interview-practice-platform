@@ -26,33 +26,51 @@ export function FeedbackDashboard({ sessionId, onBack }: FeedbackDashboardProps)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchVideoAnalysis()
-  }, [sessionId])
-
-  const fetchVideoAnalysis = async () => {
-    try {
-      setLoading(true)
-      
-      // Try to get video analysis results for this session
-      const analysisResponse = await fetch(`/api/video-analysis/results/${sessionId}`, {
-        credentials: 'include'
-      })
-      
-      if (analysisResponse.ok) {
-        const data = await analysisResponse.json()
-        setAnalysisData(data)
-        return
+    let isMounted = true;
+    const pollAnalysis = async () => {
+      try {
+        const response = await fetch(`/api/video-analysis/results/${sessionId}`, { credentials: 'include' });
+        if (response.ok) {
+          const data = await response.json();
+          if (data && isMounted) {
+            setAnalysisData(data);
+            setLoading(false);
+            setError(null);
+            return true; // Success
+          }
+        }
+        return false; // Not ready yet
+      } catch (e) {
+        if (isMounted) {
+          setError('Failed to fetch analysis status.');
+        }
+        return false;
       }
-      
-      // If no video analysis results, show message to upload video
-      setError('No video analysis found for this session. Please analyze your interview video first.')
-      
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load analysis results')
-    } finally {
-      setLoading(false)
-    }
-  }
+    };
+
+    const startPolling = () => {
+      const intervalId = setInterval(async () => {
+        const success = await pollAnalysis();
+        if (success) {
+          clearInterval(intervalId);
+          clearTimeout(timeoutId);
+        }
+      }, 5000); // Poll every 5 seconds
+
+      const timeoutId = setTimeout(() => {
+        clearInterval(intervalId);
+        if (loading && isMounted) {
+            setError('Analysis is taking longer than expected. Please check back later.');
+            setLoading(false);
+        }
+      }, 300000); // 5-minute timeout
+
+      // Initial check
+      pollAnalysis();
+    };
+
+    startPolling();
+  }, [sessionId]);
 
   if (loading) {
     return (
@@ -78,7 +96,7 @@ export function FeedbackDashboard({ sessionId, onBack }: FeedbackDashboardProps)
             Please check back in a few minutes or visit your Interview History to see the results once processing is complete.
           </p>
           <div className="space-y-2">
-            <Button onClick={fetchVideoAnalysis} className="w-full">
+            <Button onClick={() => window.location.reload()} className="w-full">
               <Clock className="w-4 h-4 mr-2" />
               Check Again
             </Button>

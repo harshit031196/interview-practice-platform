@@ -18,11 +18,10 @@ export default function AIPracticePage() {
   const [isLoading, setIsLoading] = useState(false)
   
   const [settings, setSettings] = useState({
-    interviewType: '',
-    difficulty: '',
+    interviewType: 'behavioral',
+    difficulty: 'medium',
     duration: [15],
     jdId: '',
-    voiceOnly: true,
     allowHints: true,
     showTimer: true,
   })
@@ -54,6 +53,7 @@ export default function AIPracticePage() {
           interviewType: settings.interviewType,
           difficulty: settings.difficulty,
           duration: settings.duration[0],
+          isConversational: true,
           jdId: settings.jdId || undefined,
         }),
       })
@@ -64,10 +64,13 @@ export default function AIPracticePage() {
       }
 
       const { sessionId } = await response.json()
+      console.log('Session created:', sessionId, 'isConversational: true')
+      
+      // Redirect to the session page which will handle conversational interviews
       router.push(`/practice/ai/session/${sessionId}`)
     } catch (error) {
       console.error('Error starting session:', error)
-      alert('Failed to start session. Please try again.')
+      alert(`Failed to start interview: ${error instanceof Error ? error.message : 'Please check your connection and try again.'}`)
     } finally {
       setIsLoading(false)
     }
@@ -160,26 +163,42 @@ export default function AIPracticePage() {
               </CardContent>
             </Card>
 
-            {/* Interview Aids */}
+            {/* AI Interview Features */}
             <Card>
               <CardHeader>
-                <CardTitle>Interview Aids</CardTitle>
-                <CardDescription>Optional features to help during the interview</CardDescription>
+                <CardTitle>AI Interview Features</CardTitle>
+                <CardDescription>Experience our advanced conversational AI interviewer</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">Voice Only Mode</div>
-                      <div className="text-sm text-muted-foreground">Audio-only interview (recommended)</div>
+                  <div className="p-4 border-2 border-primary bg-primary/5 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Mic className="w-5 h-5 text-purple-600" />
+                      <div className="font-medium">Conversational AI Interview</div>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={settings.voiceOnly}
-                      onChange={(e) => setSettings({ ...settings, voiceOnly: e.target.checked })}
-                      className="w-4 h-4"
-                    />
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                        Real-time voice conversation with AI interviewer
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                        Dynamic follow-up questions based on your responses
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                        Comprehensive video and speech analysis
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                        STAR method feedback and improvement tips
+                      </li>
+                    </ul>
                   </div>
+                </div>
+                
+                <div className="mt-6 space-y-4 border-t pt-4">
+                  <div className="text-sm font-medium text-muted-foreground">Additional Options</div>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium">Allow Hints</div>
@@ -249,12 +268,10 @@ export default function AIPracticePage() {
                     <Mic className="w-4 h-4 text-green-600" />
                     <span>Microphone access required</span>
                   </div>
-                  {!settings.voiceOnly && (
-                    <div className="flex items-center gap-3 text-sm">
-                      <Video className="w-4 h-4 text-green-600" />
-                      <span>Camera access required</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3 text-sm">
+                    <Video className="w-4 h-4 text-green-600" />
+                    <span>Camera access required for video recording</span>
+                  </div>
                   <div className="flex items-center gap-3 text-sm">
                     <Clock className="w-4 h-4 text-blue-600" />
                     <span>Find a quiet environment</span>
